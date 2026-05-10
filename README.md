@@ -121,7 +121,7 @@ Letakkan di `.env.local` (jangan di-commit).
 | Variable | Wajib | Default | Keterangan |
 |----------|-------|---------|------------|
 | `GEMINI_API_KEY` | ✅ | — | API key dari Google AI Studio. Server-side only. |
-| `GEMINI_MODEL` | ❌ | `gemini-1.5-flash` | Model Gemini. Gunakan `gemini-1.5-pro` untuk kualitas lebih tinggi (lebih lambat & mahal). |
+| `GEMINI_MODEL` | ❌ | `gemini-2.5-flash` | Model Gemini. Gunakan `gemini-2.5-pro` untuk kualitas lebih tinggi atau `gemini-2.5-flash-lite` untuk yang paling hemat. `gemini-1.5-*` sudah di-deprecate Google. |
 | `NEXT_PUBLIC_APP_NAME` | ❌ | `LinguaLoom AI` | Nama aplikasi di header & footer. |
 
 > **⚠️ Keamanan:** `GEMINI_API_KEY` **tidak berawalan `NEXT_PUBLIC_`** — jadi tidak akan bocor ke browser. Semua panggilan ke Gemini terjadi di server (`app/api/translate/route.ts`).
