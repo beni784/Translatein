@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Languages, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 
 const NAV_LINKS = [
   { href: "/english", label: "English → ID", flag: "🇬🇧" },
@@ -15,6 +16,9 @@ export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "BeniYujii AI";
+
+  // Hide header on the unlock page itself — no need to show nav when locked.
+  if (pathname === "/unlock") return null;
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/40 bg-white/60 backdrop-blur-xl">
@@ -56,6 +60,9 @@ export function Header() {
               </Link>
             );
           })}
+          <div className="ml-2 border-l border-slate-200 pl-2">
+            <LogoutButton />
+          </div>
         </div>
 
         <button
@@ -91,6 +98,12 @@ export function Header() {
                 </Link>
               );
             })}
+            <div className="mt-2 border-t border-slate-100 pt-2">
+              <LogoutButton
+                className="w-full justify-center"
+                onDone={() => setOpen(false)}
+              />
+            </div>
           </div>
         </div>
       )}

@@ -123,8 +123,28 @@ Letakkan di `.env.local` (jangan di-commit).
 | `GEMINI_API_KEY` | ✅ | — | API key dari Google AI Studio. Server-side only. |
 | `GEMINI_MODEL` | ❌ | `gemini-2.5-flash` | Model Gemini. Gunakan `gemini-2.5-pro` untuk kualitas lebih tinggi atau `gemini-2.5-flash-lite` untuk yang paling hemat. `gemini-1.5-*` sudah di-deprecate Google. |
 | `NEXT_PUBLIC_APP_NAME` | ❌ | `BeniYujii AI` | Nama aplikasi di header & footer. |
+| `APP_PASSWORD` | ❌ | `lenacantik` | Password untuk membuka aplikasi. Ganti sewaktu-waktu dari Vercel — semua sesi lama otomatis invalid. |
 
 > **⚠️ Keamanan:** `GEMINI_API_KEY` **tidak berawalan `NEXT_PUBLIC_`** — jadi tidak akan bocor ke browser. Semua panggilan ke Gemini terjadi di server (`app/api/translate/route.ts`).
+
+### 🔒 Mengganti password aplikasi
+
+Aplikasi punya **password gate** — user harus masukkan password di `/unlock` sebelum bisa pakai aplikasi. Password defaultnya `lenacantik`.
+
+**Cara ganti password kapan saja (tanpa deploy ulang code):**
+
+1. Buka **Vercel Dashboard** → project kamu → **Settings** → **Environment Variables**
+2. Kalau variabel `APP_PASSWORD` **belum ada** → klik **Add New**:
+   - Key: `APP_PASSWORD`
+   - Value: _password baru_ (misal: `kamucantik2026`)
+   - Environments: **Production** dan **Preview**
+   - Save
+3. Kalau variabel `APP_PASSWORD` **sudah ada** → klik ikon edit → ubah value → Save
+4. Trigger redeploy: **Deployments** → deployment terakhir → titik tiga (⋯) → **Redeploy**
+
+Setelah redeploy, semua user yang sudah login sebelumnya akan **otomatis logout** dan diminta masukkan password baru. Ini terjadi karena cookie auth ditandatangani pakai password lama; kalau password berubah, signature tidak akan verify lagi.
+
+**Untuk development lokal:** ganti nilai `APP_PASSWORD` di file `.env.local` lalu restart `npm run dev`.
 
 ---
 
@@ -203,8 +223,9 @@ curl -X POST http://localhost:3000/api/translate \
 3. Framework **Next.js** akan terdeteksi otomatis. Biarkan build command & output directory default.
 4. Tambahkan **Environment Variables**:
    - `GEMINI_API_KEY` = _API key milikmu_
-   - (opsional) `GEMINI_MODEL` = `gemini-1.5-flash` atau `gemini-1.5-pro`
+   - (opsional) `GEMINI_MODEL` = `gemini-2.5-flash` (default), `gemini-2.5-flash-lite`, atau `gemini-2.5-pro`
    - (opsional) `NEXT_PUBLIC_APP_NAME` = `BeniYujii AI`
+   - (opsional) `APP_PASSWORD` = password custom kamu (default: `lenacantik`)
 5. Klik **Deploy**. Selesai dalam ~1 menit.
 
 Untuk update, cukup `git push` ke branch main — Vercel akan auto-redeploy.

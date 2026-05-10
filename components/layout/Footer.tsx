@@ -1,8 +1,15 @@
+"use client";
+
 import { Heart, Sparkles } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export function Footer() {
+  const pathname = usePathname();
   const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "BeniYujii AI";
   const year = new Date().getFullYear();
+
+  // Hide footer on the unlock page — keep that screen focused.
+  if (pathname === "/unlock") return null;
 
   return (
     <footer className="mt-auto border-t border-white/40 bg-white/40 backdrop-blur-xl">
