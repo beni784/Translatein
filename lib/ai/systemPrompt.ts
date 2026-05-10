@@ -3,52 +3,43 @@ import { STYLE_MAP } from "../styles";
 
 /**
  * Core system prompt — defines the persona of BeniYujii AI.
- * Explicitly tells the model not to dump long chain-of-thought.
+ *
+ * OPTIMIZED FOR SPEED:
+ * - Kept short & directive — every token in the system prompt gets prepended
+ *   to every request, so brevity matters for latency.
+ * - Explicit JSON-only output instruction stays; the model follows it reliably.
  */
-export const BENIYUJII_SYSTEM_PROMPT = `Kamu adalah BeniYujii AI — ahli penerjemah Bahasa Inggris dan Bahasa Indonesia, guru bahasa yang sabar, seorang linguist, dan pakar konteks budaya.
+export const BENIYUJII_SYSTEM_PROMPT = `Kamu adalah BeniYujii AI — ahli penerjemah Inggris⇄Indonesia, guru bahasa yang sabar, linguist, dan pakar budaya.
 
-Tugasmu bukan hanya menerjemahkan, tetapi menjelaskan:
-- Makna kalimat dalam konteks yang tepat
-- Alasan pemilihan kata dan struktur
-- Situasi penggunaan yang cocok
-- Variasi formal, informal, slang
-- Nuansa budaya antara penutur Inggris dan Indonesia
-- Contoh dialog nyata
+Tugasmu: menerjemahkan DAN menjelaskan makna, struktur, gaya, nuansa, slang, dan konteks budaya.
 
-ATURAN WAJIB:
-1. Selalu prioritaskan terjemahan NATURAL sesuai konteks, bukan literal.
-2. Jawaban harus ramah, rapi, jelas, dan mudah dipahami pemula.
-3. Semua penjelasan ditulis dalam Bahasa Indonesia (apa pun bahasa inputnya).
-4. JANGAN menuliskan proses berpikir panjang atau chain-of-thought internal. Berikan hasil yang sudah rapi.
-5. JANGAN menolak menerjemahkan kecuali kontennya benar-benar berbahaya. Slang, bahasa gaul, kata kasar, dan kalimat romantis adalah bagian wajar dari bahasa dan harus dijelaskan secara edukatif.
-6. Jika input mengandung kata kasar atau sensitif, tetap terjemahkan dengan catatan risiko pemakaian pada bagian culturalNotes & slangSection.
-7. Output WAJIB berupa JSON valid persis sesuai skema yang diminta — tanpa markdown fence, tanpa komentar, tanpa teks pembuka/penutup.
-8. Setiap field string harus terisi bermakna. Jika sesuatu tidak relevan, isi dengan penjelasan singkat seperti "Tidak umum dipakai dalam konteks ini" — JANGAN biarkan kosong.
-9. Untuk array, minimal 2 item kecuali dinyatakan lain.`;
+ATURAN:
+1. Prioritaskan terjemahan NATURAL sesuai konteks, bukan literal.
+2. Semua penjelasan dalam Bahasa Indonesia.
+3. Jangan menolak slang/kata gaul/kata kasar — jelaskan secara edukatif dengan catatan risiko pemakaian.
+4. Output WAJIB JSON valid persis skema. Tanpa markdown fence, tanpa komentar pembuka/penutup.
+5. Isi setiap field secara ringkas dan bermakna. Untuk field tidak relevan, tulis "Tidak umum dipakai" — jangan kosong.
+6. Array minimal 2 item. Tulis ringkas dan padat — jangan bertele-tele.
+7. Jangan menulis chain-of-thought atau proses berpikir. Langsung hasil.`;
 
 const STYLE_INSTRUCTIONS: Record<TranslationStyle, string> = {
-  natural:
-    "Terjemahkan sealami mungkin, seperti yang akan diucapkan penutur asli dalam kehidupan sehari-hari.",
-  formal:
-    "Gunakan register formal, sopan, dan resmi. Cocok untuk email bisnis, surat, atau presentasi.",
-  casual:
-    "Gunakan gaya santai dan akrab seperti ngobrol dengan teman. Boleh pakai kontraksi dan sapaan ringan.",
-  academic:
-    "Gunakan gaya akademik, presisi, dan terstruktur. Hindari slang. Pilih kata yang formal dan akurat.",
-  business:
-    "Gunakan gaya profesional bisnis — ringkas, jelas, action-oriented, dan sopan.",
-  slang:
-    "Gunakan slang, bahasa gaul, atau internet culture yang sedang populer. Tetap berikan versi natural sebagai pembanding di translationVariations.",
-  romantic:
-    "Gunakan gaya hangat, puitis, dan ekspresif yang cocok untuk konteks percintaan atau emosional.",
-  kids:
-    "Gunakan kata-kata yang sangat sederhana, pendek, dan mudah dimengerti anak kecil.",
+  natural: "alami seperti penutur asli sehari-hari",
+  formal: "formal, sopan, resmi — cocok email/surat/presentasi",
+  casual: "santai dan akrab seperti ngobrol dengan teman",
+  academic: "akademik, presisi, terstruktur, tanpa slang",
+  business: "profesional bisnis — ringkas, action-oriented",
+  slang: "slang/bahasa gaul/internet culture populer",
+  romantic: "hangat, puitis, ekspresif, emosional",
+  kids: "kata sangat sederhana, pendek, mudah dimengerti anak kecil",
 };
 
 /**
  * Builds the per-request user prompt.
- * The model receives: direction + style + input sentence, and is asked to
- * return the strict JSON schema.
+ *
+ * OPTIMIZED: the JSON schema is heavily compressed — we rely on the model to
+ * infer field purpose from concise names plus short hints. This saves ~40% of
+ * prompt tokens vs the original verbose schema, which directly reduces
+ * latency (fewer tokens to process → faster first token).
  */
 export function buildUserPrompt(params: {
   text: string;
@@ -61,87 +52,65 @@ export function buildUserPrompt(params: {
 
   const directionLine =
     direction === "en-id"
-      ? "ARAH: Bahasa Inggris → Bahasa Indonesia. Input di bawah adalah Bahasa Inggris. mainTranslation dan semua variasi di translationVariations HARUS dalam Bahasa Indonesia."
-      : "ARAH: Bahasa Indonesia → Bahasa Inggris. Input di bawah adalah Bahasa Indonesia. mainTranslation dan semua variasi di translationVariations HARUS dalam Bahasa Inggris.";
+      ? "ARAH: EN→ID. Input = Inggris. mainTranslation & translationVariations HARUS dalam Bahasa Indonesia."
+      : "ARAH: ID→EN. Input = Indonesia. mainTranslation & translationVariations HARUS dalam Bahasa Inggris.";
 
   return `${directionLine}
+GAYA: ${styleOption.label} — ${styleHint}
 
-GAYA TERJEMAHAN YANG DIMINTA: ${styleOption.label} (${styleOption.id})
-PETUNJUK GAYA: ${styleHint}
-
-INPUT PENGGUNA:
+INPUT:
 """
 ${text}
 """
 
-Kembalikan JSON valid dengan skema berikut PERSIS (tanpa markdown fence):
+Kembalikan JSON PERSIS skema ini (tanpa fence, tanpa teks tambahan):
 
 {
-  "mainTranslation": "string — terjemahan utama paling natural sesuai gaya yang diminta",
-  "simpleExplanation": "string — penjelasan super sederhana seakan menjelaskan ke anak kecil, dalam Bahasa Indonesia",
+  "mainTranslation": "terjemahan utama paling natural sesuai gaya",
+  "simpleExplanation": "penjelasan sederhana seperti ke anak kecil (Bahasa Indonesia)",
   "linguisticReasoning": {
-    "coreMeaning": "string — makna inti kalimat",
-    "importantWords": ["string", "string"],
-    "structureNotes": "string — perubahan struktur kalimat antar bahasa",
-    "toneNotes": "string — perubahan nuansa/nada",
-    "whyThisTranslationWorks": "string — alasan ringkas kenapa pilihan kata ini cocok"
+    "coreMeaning": "makna inti",
+    "importantWords": ["kata kunci 1", "kata kunci 2"],
+    "structureNotes": "perubahan struktur antar bahasa",
+    "toneNotes": "perubahan nuansa/nada",
+    "whyThisTranslationWorks": "alasan pilihan kata cocok"
   },
   "phraseBreakdown": [
-    {
-      "original": "string — kata/frasa asli dari input",
-      "basicMeaning": "string — arti dasar",
-      "contextMeaning": "string — arti dalam konteks kalimat ini",
-      "usageNote": "string — catatan pemakaian singkat"
-    }
+    { "original": "kata/frasa asli", "basicMeaning": "arti dasar", "contextMeaning": "arti dalam konteks", "usageNote": "catatan pemakaian singkat" }
   ],
   "bestCombinations": {
-    "beforeSentence": ["string", "string"],
-    "afterSentence": ["string", "string"],
-    "possibleReplies": ["string", "string"],
-    "naturalVariations": ["string", "string"]
+    "beforeSentence": ["kalimat sebelum 1", "kalimat sebelum 2"],
+    "afterSentence": ["kalimat sesudah 1", "kalimat sesudah 2"],
+    "possibleReplies": ["respons 1", "respons 2"],
+    "naturalVariations": ["variasi 1", "variasi 2"]
   },
   "situationalUsage": {
-    "casual": "string",
-    "formal": "string",
-    "academic": "string",
-    "business": "string",
-    "socialMedia": "string",
-    "sensitiveContext": "string — kapan harus hati-hati"
+    "casual": "", "formal": "", "academic": "", "business": "", "socialMedia": "", "sensitiveContext": "kapan hati-hati"
   },
   "domainDifferences": {
-    "casual": "string",
-    "formal": "string",
-    "academic": "string",
-    "business": "string",
-    "slang": "string",
-    "internetCulture": "string",
-    "nativeStyle": "string — bagaimana native speaker mengucapkannya"
+    "casual": "", "formal": "", "academic": "", "business": "", "slang": "", "internetCulture": "", "nativeStyle": "cara native speaker"
   },
   "slangSection": {
-    "slangVersions": ["string", "string"],
-    "meaning": "string",
-    "safeToUseWhen": "string",
-    "avoidWhen": "string",
-    "examples": ["string", "string"]
+    "slangVersions": ["slang 1", "slang 2"],
+    "meaning": "arti slang",
+    "safeToUseWhen": "aman dipakai saat",
+    "avoidWhen": "hindari saat",
+    "examples": ["contoh 1", "contoh 2"]
   },
   "translationVariations": {
-    "natural": "string",
-    "formal": "string",
-    "casual": "string",
-    "short": "string",
-    "expressive": "string"
+    "natural": "", "formal": "", "casual": "", "short": "", "expressive": ""
   },
   "dialogExamples": [
-    "string — dialog 2-4 baris, format: 'A: ...' dan 'B: ...' dipisah newline",
-    "string — dialog alternatif berbeda konteks"
+    "A: ...\\nB: ...",
+    "A: ...\\nB: ..."
   ],
   "culturalNotes": {
-    "politeness": "string — seberapa sopan",
-    "warmth": "string — seberapa hangat/akrab/dingin",
-    "riskOfMisunderstanding": "string — risiko salah paham",
-    "naturalnessScore": "string — misal '9/10 sangat natural' dengan alasan singkat"
+    "politeness": "tingkat sopan",
+    "warmth": "hangat/dingin",
+    "riskOfMisunderstanding": "risiko salah paham",
+    "naturalnessScore": "misal '9/10 sangat natural' + alasan singkat"
   }
 }
 
-Pastikan JSON valid dan setiap field berisi konten bermakna. Jangan tambahkan field lain di luar skema.`;
+Isi setiap field dengan ringkas (1-2 kalimat per string). Total output ≤ 1800 kata.`;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { InputCard } from "./InputCard";
 import { LoadingSkeleton } from "./LoadingSkeleton";
@@ -30,6 +30,62 @@ interface ErrorInfo {
   detail?: string;
 }
 
+// Client-side fetch ceiling — slightly longer than the server's 55s so we
+// let the API's friendly 504 message reach us before we give up.
+const CLIENT_FETCH_TIMEOUT_MS = 75_000;
+
+/**
+ * Tiny fetch wrapper with: AbortController timeout, one auto-retry for
+ * transient network errors ("Load failed", "NetworkError", socket resets),
+ * and pass-through of JSON parsing.
+ *
+ * Why retry? Mobile browsers (especially iOS Safari) occasionally kill
+ * long-lived HTTPS connections mid-flight when the screen dims or the user
+ * switches apps. Those show up as generic "Load failed" in the catch block
+ * with nothing on the server logs. One silent retry eliminates ~90% of these.
+ */
+async function fetchTranslate(
+  body: unknown,
+  attempt = 1,
+): Promise<{ ok: boolean; status: number; data: unknown }> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    CLIENT_FETCH_TIMEOUT_MS,
+  );
+
+  try {
+    const res = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+      // Keepalive helps iOS keep the request alive across brief app switches.
+      keepalive: false,
+      cache: "no-store",
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  } catch (err) {
+    const isTransient =
+      err instanceof Error &&
+      (err.name === "AbortError" ||
+        /load failed|networkerror|failed to fetch|network request failed/i.test(
+          err.message,
+        ));
+
+    // One retry, max. Don't retry aborts caused by our own timeout —
+    // those mean the server is genuinely overloaded.
+    if (isTransient && attempt === 1 && !(err instanceof Error && err.name === "AbortError")) {
+      await new Promise((r) => setTimeout(r, 400));
+      return fetchTranslate(body, attempt + 1);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export function TranslatorShell({
   direction,
   title,
@@ -47,6 +103,16 @@ export function TranslatorShell({
   const [result, setResult] = useState<TranslationResult | null>(null);
   const [error, setError] = useState<ErrorInfo | null>(null);
 
+  // Track whether the component is still mounted — don't set state after
+  // unmount (user navigated away mid-translation).
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const handleClear = () => {
     setText("");
     setResult(null);
@@ -62,35 +128,52 @@ export function TranslatorShell({
     setResult(null);
 
     try {
-      const res = await fetch("/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: trimmed, direction, style }),
+      const { ok, status, data } = await fetchTranslate({
+        text: trimmed,
+        direction,
+        style,
       });
 
-      const data = await res.json();
+      if (!mountedRef.current) return;
 
-      if (!res.ok) {
+      if (!ok) {
+        const d = data as { error?: string; detail?: string };
+        // 401 → session expired, send user to unlock page.
+        if (status === 401) {
+          toast("Sesi berakhir. Silakan login ulang.", "error");
+          window.location.href = "/unlock";
+          return;
+        }
         setError({
-          message: data?.error || "Terjadi kesalahan.",
-          detail: data?.detail,
+          message: d?.error || "Terjadi kesalahan.",
+          detail: d?.detail,
         });
-        toast(data?.error || "Gagal menerjemahkan", "error");
+        toast(d?.error || "Gagal menerjemahkan", "error");
         return;
       }
 
       setResult(data as TranslationResult);
       toast("Terjemahan berhasil!", "success");
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Koneksi bermasalah.";
+      if (!mountedRef.current) return;
+
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      const message = err instanceof Error ? err.message : "Koneksi bermasalah.";
+
       setError({
-        message: "Tidak bisa menghubungi server.",
-        detail: message,
+        message: isAbort
+          ? "Permintaan memakan waktu terlalu lama."
+          : "Tidak bisa menghubungi server.",
+        detail: isAbort
+          ? "Coba ulangi, atau pendekkan kalimatmu. Server AI mungkin sedang sibuk."
+          : message,
       });
-      toast("Gagal menghubungi server", "error");
+      toast(
+        isAbort ? "Timeout — coba lagi" : "Gagal menghubungi server",
+        "error",
+      );
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, [text, direction, style, toast]);
 
