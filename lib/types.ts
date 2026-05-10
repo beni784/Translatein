@@ -1,5 +1,5 @@
 /**
- * LinguaLoom AI – shared type definitions.
+ * BeniYujii AI – shared type definitions.
  * These mirror the JSON contract the API route returns.
  */
 

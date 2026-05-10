@@ -1,7 +1,7 @@
 import { Heart, Sparkles } from "lucide-react";
 
 export function Footer() {
-  const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "LinguaLoom AI";
+  const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "BeniYujii AI";
   const year = new Date().getFullYear();
 
   return (

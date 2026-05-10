@@ -14,7 +14,7 @@ const NAV_LINKS = [
 export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "LinguaLoom AI";
+  const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "BeniYujii AI";
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/40 bg-white/60 backdrop-blur-xl">

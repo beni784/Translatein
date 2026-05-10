@@ -2,10 +2,10 @@ import type { Direction, TranslationStyle } from "../types";
 import { STYLE_MAP } from "../styles";
 
 /**
- * Core system prompt — defines the persona of LinguaLoom AI.
+ * Core system prompt — defines the persona of BeniYujii AI.
  * Explicitly tells the model not to dump long chain-of-thought.
  */
-export const LINGUALOOM_SYSTEM_PROMPT = `Kamu adalah LinguaLoom AI — ahli penerjemah Bahasa Inggris dan Bahasa Indonesia, guru bahasa yang sabar, seorang linguist, dan pakar konteks budaya.
+export const BENIYUJII_SYSTEM_PROMPT = `Kamu adalah BeniYujii AI — ahli penerjemah Bahasa Inggris dan Bahasa Indonesia, guru bahasa yang sabar, seorang linguist, dan pakar konteks budaya.
 
 Tugasmu bukan hanya menerjemahkan, tetapi menjelaskan:
 - Makna kalimat dalam konteks yang tepat

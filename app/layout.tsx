@@ -17,7 +17,7 @@ const sora = Sora({
   display: "swap",
 });
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "LinguaLoom AI";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "BeniYujii AI";
 
 export const metadata: Metadata = {
   title: {
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     "AI",
     "Bahasa Indonesia",
     "English",
-    "LinguaLoom",
+    "BeniYujii",
     "language coach",
   ],
   openGraph: {

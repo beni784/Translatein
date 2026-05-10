@@ -1,8 +1,8 @@
 {
-  "name": "lingualoom-ai",
+  "name": "beniyujii-ai",
   "version": "1.0.0",
   "private": true,
-  "description": "LinguaLoom AI - AI-powered English/Indonesian language coach and translator",
+  "description": "BeniYujii AI - AI-powered English/Indonesian language coach and translator",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

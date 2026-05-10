@@ -1,7 +1,7 @@
-# LinguaLoom AI
+# BeniYujii AI
 
 > **Penerjemah cerdas Bahasa Inggris ↔ Indonesia yang menjelaskan seperti guru bahasa pribadi.**
-> Bukan sekadar mengubah kata — LinguaLoom menjelaskan makna, konteks, slang, nuansa budaya, dan gaya pemakaian untuk setiap kalimat.
+> Bukan sekadar mengubah kata — BeniYujii menjelaskan makna, konteks, slang, nuansa budaya, dan gaya pemakaian untuk setiap kalimat.
 
 Built with Next.js 14 (App Router), TypeScript, Tailwind CSS, Framer Motion, dan Google Gemini.
 
@@ -32,7 +32,7 @@ Built with Next.js 14 (App Router), TypeScript, Tailwind CSS, Framer Motion, dan
 ## 📁 Struktur Project
 
 ```
-lingualoom-ai/
+beniyujii-ai/
 ├── app/
 │   ├── api/translate/route.ts     # API route → Gemini
 │   ├── english/page.tsx           # Halaman English → Indonesia
@@ -60,7 +60,7 @@ lingualoom-ai/
 │   └── ui/Toaster.tsx             # Context-based toast
 ├── lib/
 │   ├── ai/
-│   │   ├── systemPrompt.ts        # Prompt internal LinguaLoom
+│   │   ├── systemPrompt.ts        # Prompt internal BeniYujii
 │   │   └── normalize.ts           # Parser JSON + safe coercion
 │   ├── styles.ts                  # Daftar 8 gaya terjemahan
 │   ├── types.ts                   # Tipe bersama (TranslationResult dll.)
@@ -122,7 +122,7 @@ Letakkan di `.env.local` (jangan di-commit).
 |----------|-------|---------|------------|
 | `GEMINI_API_KEY` | ✅ | — | API key dari Google AI Studio. Server-side only. |
 | `GEMINI_MODEL` | ❌ | `gemini-2.5-flash` | Model Gemini. Gunakan `gemini-2.5-pro` untuk kualitas lebih tinggi atau `gemini-2.5-flash-lite` untuk yang paling hemat. `gemini-1.5-*` sudah di-deprecate Google. |
-| `NEXT_PUBLIC_APP_NAME` | ❌ | `LinguaLoom AI` | Nama aplikasi di header & footer. |
+| `NEXT_PUBLIC_APP_NAME` | ❌ | `BeniYujii AI` | Nama aplikasi di header & footer. |
 
 > **⚠️ Keamanan:** `GEMINI_API_KEY` **tidak berawalan `NEXT_PUBLIC_`** — jadi tidak akan bocor ke browser. Semua panggilan ke Gemini terjadi di server (`app/api/translate/route.ts`).
 
@@ -144,7 +144,7 @@ Letakkan di `.env.local` (jangan di-commit).
 Persona dan instruksi lengkap ada di `lib/ai/systemPrompt.ts`. Ringkasnya:
 
 ```
-Kamu adalah LinguaLoom AI — ahli penerjemah Bahasa Inggris dan Bahasa Indonesia,
+Kamu adalah BeniYujii AI — ahli penerjemah Bahasa Inggris dan Bahasa Indonesia,
 guru bahasa yang sabar, linguist, dan pakar konteks budaya.
 
 ATURAN:
@@ -204,7 +204,7 @@ curl -X POST http://localhost:3000/api/translate \
 4. Tambahkan **Environment Variables**:
    - `GEMINI_API_KEY` = _API key milikmu_
    - (opsional) `GEMINI_MODEL` = `gemini-1.5-flash` atau `gemini-1.5-pro`
-   - (opsional) `NEXT_PUBLIC_APP_NAME` = `LinguaLoom AI`
+   - (opsional) `NEXT_PUBLIC_APP_NAME` = `BeniYujii AI`
 5. Klik **Deploy**. Selesai dalam ~1 menit.
 
 Untuk update, cukup `git push` ke branch main — Vercel akan auto-redeploy.

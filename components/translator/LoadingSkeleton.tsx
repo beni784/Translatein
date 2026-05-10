@@ -34,7 +34,7 @@ export function LoadingSkeleton() {
       <div className="flex items-center gap-3 rounded-2xl border border-brand-200/60 bg-brand-50/50 px-4 py-3 backdrop-blur">
         <Loader2 className="h-4 w-4 animate-spin text-brand-600" />
         <p className="text-sm font-medium text-brand-800">
-          LinguaLoom sedang menganalisis kalimatmu...
+          BeniYujii sedang menganalisis kalimatmu...
         </p>
       </div>
 

@@ -60,7 +60,7 @@ export default function HomePage() {
               <span className="gradient-text">menerjemah.</span>
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
-              LinguaLoom AI menjelaskan makna, konteks, slang, dan nuansa budaya
+              BeniYujii AI menjelaskan makna, konteks, slang, dan nuansa budaya
               dari setiap kalimat. Seperti punya guru bahasa pribadi — yang
               sabar, cerdas, dan selalu siap 24/7.
             </p>
@@ -149,7 +149,7 @@ export default function HomePage() {
               Siap memulai perjalanan bahasamu?
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-white/80">
-              Pilih arah terjemahan, ketik kalimat, dan biarkan LinguaLoom
+              Pilih arah terjemahan, ketik kalimat, dan biarkan BeniYujii
               menjelaskannya seperti guru pribadi.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

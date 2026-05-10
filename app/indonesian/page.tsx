@@ -12,7 +12,7 @@ export default function IndonesianPage() {
     <TranslatorShell
       direction="id-en"
       title="Indonesian → English"
-      subtitle="Tulis kalimat Bahasa Indonesia — LinguaLoom akan menerjemahkannya ke English natural dan menjelaskan nuansanya dalam Bahasa Indonesia."
+      subtitle="Tulis kalimat Bahasa Indonesia — BeniYujii akan menerjemahkannya ke English natural dan menjelaskan nuansanya dalam Bahasa Indonesia."
       inputPlaceholder="Contoh: Aku lagi galau banget sama kerjaan yang numpuk 😭"
       inputLabel="Bahasa Indonesia"
       inputFlag="🇮🇩"

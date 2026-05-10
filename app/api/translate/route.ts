@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
-  LINGUALOOM_SYSTEM_PROMPT,
+  BENIYUJII_SYSTEM_PROMPT,
   buildUserPrompt,
 } from "@/lib/ai/systemPrompt";
 import {
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: modelName,
-      systemInstruction: LINGUALOOM_SYSTEM_PROMPT,
+      systemInstruction: BENIYUJII_SYSTEM_PROMPT,
       generationConfig: {
         temperature: 0.7,
         topP: 0.95,
