@@ -30,24 +30,27 @@ interface ErrorInfo {
   detail?: string;
 }
 
-// Client-side fetch ceiling — slightly longer than the server's 55s so we
-// let the API's friendly 504 message reach us before we give up.
-const CLIENT_FETCH_TIMEOUT_MS = 75_000;
+const CLIENT_FETCH_TIMEOUT_MS = 65_000;
+
+// Minimum interval between submits (client-side debounce).
+const MIN_SUBMIT_INTERVAL_MS = 3000;
 
 /**
- * Tiny fetch wrapper with: AbortController timeout, one auto-retry for
- * transient network errors ("Load failed", "NetworkError", socket resets),
- * and pass-through of JSON parsing.
- *
- * Why retry? Mobile browsers (especially iOS Safari) occasionally kill
- * long-lived HTTPS connections mid-flight when the screen dims or the user
- * switches apps. Those show up as generic "Load failed" in the catch block
- * with nothing on the server logs. One silent retry eliminates ~90% of these.
+ * Fetch wrapper with:
+ * - AbortController timeout
+ * - Single transient retry for mobile network hiccups
+ * - Adapted to new API response format {success, data/type/message}
  */
 async function fetchTranslate(
   body: unknown,
   attempt = 1,
-): Promise<{ ok: boolean; status: number; data: unknown }> {
+): Promise<{
+  success: boolean;
+  status: number;
+  data?: unknown;
+  type?: string;
+  message?: string;
+}> {
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(),
@@ -60,29 +63,83 @@ async function fetchTranslate(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: controller.signal,
-      // Keepalive helps iOS keep the request alive across brief app switches.
-      keepalive: false,
       cache: "no-store",
     });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, data };
+    const json = await res.json().catch(() => ({
+      success: false,
+      type: "SERVER_ERROR",
+      message: "Respons server tidak bisa dibaca.",
+    }));
+
+    return {
+      success: json.success === true,
+      status: res.status,
+      data: json.data,
+      type: json.type,
+      message: json.message,
+    };
   } catch (err) {
     const isTransient =
       err instanceof Error &&
-      (err.name === "AbortError" ||
-        /load failed|networkerror|failed to fetch|network request failed/i.test(
-          err.message,
-        ));
+      err.name !== "AbortError" &&
+      /load failed|networkerror|failed to fetch|network request failed/i.test(
+        err.message,
+      );
 
-    // One retry, max. Don't retry aborts caused by our own timeout —
-    // those mean the server is genuinely overloaded.
-    if (isTransient && attempt === 1 && !(err instanceof Error && err.name === "AbortError")) {
-      await new Promise((r) => setTimeout(r, 400));
+    if (isTransient && attempt === 1) {
+      await new Promise((r) => setTimeout(r, 500));
       return fetchTranslate(body, attempt + 1);
     }
     throw err;
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Map API error types to user-friendly messages for the ErrorState component.
+ */
+function getErrorDisplay(type?: string, message?: string): ErrorInfo {
+  const msg = message || "Terjadi kesalahan.";
+
+  switch (type) {
+    case "RATE_LIMIT":
+      return {
+        message: "Terlalu cepat!",
+        detail: msg,
+      };
+    case "QUOTA_EXCEEDED":
+      return {
+        message: "Kuota AI penuh",
+        detail: msg,
+      };
+    case "AUTH_ERROR":
+      return {
+        message: "Konfigurasi server bermasalah",
+        detail: msg,
+      };
+    case "INVALID_JSON":
+      return {
+        message: "Respons AI tidak sesuai format",
+        detail: msg,
+      };
+    case "TIMEOUT":
+      return {
+        message: "AI membutuhkan waktu terlalu lama",
+        detail: msg,
+      };
+    case "NETWORK_ERROR":
+      return {
+        message: "Koneksi ke AI gagal",
+        detail: msg,
+      };
+    case "EMPTY_RESPONSE":
+      return {
+        message: "AI tidak menghasilkan hasil",
+        detail: msg,
+      };
+    default:
+      return { message: msg };
   }
 }
 
@@ -103,8 +160,11 @@ export function TranslatorShell({
   const [result, setResult] = useState<TranslationResult | null>(null);
   const [error, setError] = useState<ErrorInfo | null>(null);
 
-  // Track whether the component is still mounted — don't set state after
-  // unmount (user navigated away mid-translation).
+  // Debounce / duplicate prevention.
+  const lastSubmitRef = useRef<number>(0);
+  const isSubmittingRef = useRef(false);
+
+  // Mounted check to prevent setState after unmount.
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -123,12 +183,24 @@ export function TranslatorShell({
     const trimmed = text.trim();
     if (!trimmed) return;
 
+    // --- Debounce: prevent rapid re-submits ---
+    const now = Date.now();
+    if (now - lastSubmitRef.current < MIN_SUBMIT_INTERVAL_MS) {
+      toast("Tunggu sebentar sebelum menerjemahkan lagi.", "info");
+      return;
+    }
+
+    // --- Prevent duplicate concurrent requests ---
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    lastSubmitRef.current = now;
+
     setLoading(true);
     setError(null);
     setResult(null);
 
     try {
-      const { ok, status, data } = await fetchTranslate({
+      const response = await fetchTranslate({
         text: trimmed,
         direction,
         style,
@@ -136,37 +208,33 @@ export function TranslatorShell({
 
       if (!mountedRef.current) return;
 
-      if (!ok) {
-        const d = data as { error?: string; detail?: string };
-        // 401 → session expired, send user to unlock page.
-        if (status === 401) {
+      if (!response.success) {
+        // 401 → session expired.
+        if (response.status === 401 && response.type !== "AUTH_ERROR") {
           toast("Sesi berakhir. Silakan login ulang.", "error");
           window.location.href = "/unlock";
           return;
         }
-        setError({
-          message: d?.error || "Terjadi kesalahan.",
-          detail: d?.detail,
-        });
-        toast(d?.error || "Gagal menerjemahkan", "error");
+
+        const errorDisplay = getErrorDisplay(response.type, response.message);
+        setError(errorDisplay);
+        toast(errorDisplay.message, "error");
         return;
       }
 
-      setResult(data as TranslationResult);
+      setResult(response.data as TranslationResult);
       toast("Terjemahan berhasil!", "success");
     } catch (err) {
       if (!mountedRef.current) return;
 
       const isAbort = err instanceof Error && err.name === "AbortError";
-      const message = err instanceof Error ? err.message : "Koneksi bermasalah.";
-
       setError({
         message: isAbort
-          ? "Permintaan memakan waktu terlalu lama."
+          ? "AI membutuhkan waktu terlalu lama."
           : "Tidak bisa menghubungi server.",
         detail: isAbort
-          ? "Coba ulangi, atau pendekkan kalimatmu. Server AI mungkin sedang sibuk."
-          : message,
+          ? "Coba pendekkan kalimatmu atau coba lagi."
+          : "Periksa koneksi internet kamu.",
       });
       toast(
         isAbort ? "Timeout — coba lagi" : "Gagal menghubungi server",
@@ -174,6 +242,7 @@ export function TranslatorShell({
       );
     } finally {
       if (mountedRef.current) setLoading(false);
+      isSubmittingRef.current = false;
     }
   }, [text, direction, style, toast]);
 

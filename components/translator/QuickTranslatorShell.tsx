@@ -22,14 +22,14 @@ import { CopyButton } from "@/components/result/CopyButton";
 import { STYLE_MAP } from "@/lib/styles";
 import type {
   Direction,
-  QuickTranslateResult,
   TranslationStyle,
 } from "@/lib/types";
 
 const MAX_CHARS = 2000;
 const CLIENT_FETCH_TIMEOUT_MS = 35_000;
+const MIN_SUBMIT_INTERVAL_MS = 3000;
 
-/** Lang config per direction — used for UI labels and TTS hints. */
+/** Lang config per direction. */
 const DIR_CONFIG: Record<
   Direction,
   {
@@ -38,7 +38,6 @@ const DIR_CONFIG: Record<
     toFlag: string;
     toLabel: string;
     inputPlaceholder: string;
-    ttsFromLang: string;
     ttsToLang: string;
   }
 > = {
@@ -48,7 +47,6 @@ const DIR_CONFIG: Record<
     toFlag: "🇮🇩",
     toLabel: "Bahasa Indonesia",
     inputPlaceholder: "Contoh: Let's grab a coffee later!",
-    ttsFromLang: "en-US",
     ttsToLang: "id-ID",
   },
   "id-en": {
@@ -57,7 +55,6 @@ const DIR_CONFIG: Record<
     toFlag: "🇬🇧",
     toLabel: "English",
     inputPlaceholder: "Contoh: Nanti ngopi bareng yuk!",
-    ttsFromLang: "id-ID",
     ttsToLang: "en-US",
   },
 };
@@ -68,13 +65,18 @@ interface ErrorInfo {
 }
 
 /**
- * Minimal fetch wrapper with timeout + single transient retry.
- * Same pattern as the full translator, scaled down to quick mode's faster budget.
+ * Fetch wrapper adapted to new API format: {success, data, type, message}
  */
 async function fetchQuickTranslate(
   body: unknown,
   attempt = 1,
-): Promise<{ ok: boolean; status: number; data: unknown }> {
+): Promise<{
+  success: boolean;
+  status: number;
+  data?: { translation: string };
+  type?: string;
+  message?: string;
+}> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CLIENT_FETCH_TIMEOUT_MS);
   try {
@@ -85,8 +87,18 @@ async function fetchQuickTranslate(
       signal: controller.signal,
       cache: "no-store",
     });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, data };
+    const json = await res.json().catch(() => ({
+      success: false,
+      type: "SERVER_ERROR",
+      message: "Respons server tidak bisa dibaca.",
+    }));
+    return {
+      success: json.success === true,
+      status: res.status,
+      data: json.data,
+      type: json.type,
+      message: json.message,
+    };
   } catch (err) {
     const isTransient =
       err instanceof Error &&
@@ -115,6 +127,24 @@ function speak(text: string, lang: string) {
   synth.speak(u);
 }
 
+function getErrorDisplay(type?: string, message?: string): ErrorInfo {
+  const msg = message || "Terjadi kesalahan.";
+  switch (type) {
+    case "RATE_LIMIT":
+      return { message: "Terlalu cepat!", detail: msg };
+    case "QUOTA_EXCEEDED":
+      return { message: "Kuota AI penuh", detail: msg };
+    case "INVALID_JSON":
+      return { message: "Respons AI tidak sesuai format", detail: msg };
+    case "TIMEOUT":
+      return { message: "AI terlalu lama", detail: msg };
+    case "NETWORK_ERROR":
+      return { message: "Koneksi gagal", detail: msg };
+    default:
+      return { message: msg };
+  }
+}
+
 export function QuickTranslatorShell() {
   const { toast } = useToast();
 
@@ -127,11 +157,12 @@ export function QuickTranslatorShell() {
   const [swapping, setSwapping] = useState(false);
 
   const mountedRef = useRef(true);
+  const lastSubmitRef = useRef<number>(0);
+  const isSubmittingRef = useRef(false);
+
   useEffect(() => {
     mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
+    return () => { mountedRef.current = false; };
   }, []);
 
   const cfg = DIR_CONFIG[direction];
@@ -146,12 +177,22 @@ export function QuickTranslatorShell() {
     const trimmed = text.trim();
     if (!trimmed || overLimit || loading) return;
 
+    // Debounce.
+    const now = Date.now();
+    if (now - lastSubmitRef.current < MIN_SUBMIT_INTERVAL_MS) {
+      toast("Tunggu sebentar sebelum menerjemahkan lagi.", "info");
+      return;
+    }
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    lastSubmitRef.current = now;
+
     setLoading(true);
     setError(null);
     setResult("");
 
     try {
-      const { ok, status, data } = await fetchQuickTranslate({
+      const response = await fetchQuickTranslate({
         text: trimmed,
         direction,
         style,
@@ -159,26 +200,19 @@ export function QuickTranslatorShell() {
 
       if (!mountedRef.current) return;
 
-      if (!ok) {
-        const d = data as { error?: string; detail?: string };
-        if (status === 401) {
+      if (!response.success) {
+        if (response.status === 401 && response.type !== "AUTH_ERROR") {
           toast("Sesi berakhir. Login ulang.", "error");
           window.location.href = "/unlock";
           return;
         }
-        setError({
-          message: d?.error || "Terjadi kesalahan.",
-          detail: d?.detail,
-        });
-        toast(d?.error || "Gagal menerjemahkan", "error");
+        const errorDisplay = getErrorDisplay(response.type, response.message);
+        setError(errorDisplay);
+        toast(errorDisplay.message, "error");
         return;
       }
 
-      const translation =
-        typeof (data as QuickTranslateResult).translation === "string"
-          ? (data as QuickTranslateResult).translation
-          : "";
-
+      const translation = response.data?.translation || "";
       if (!translation) {
         setError({ message: "Hasil kosong — coba lagi." });
         return;
@@ -192,26 +226,23 @@ export function QuickTranslatorShell() {
       const isAbort = err instanceof Error && err.name === "AbortError";
       setError({
         message: isAbort
-          ? "Permintaan memakan waktu terlalu lama."
+          ? "AI terlalu lama."
           : "Tidak bisa menghubungi server.",
         detail: isAbort
-          ? "Coba ulangi, atau pendekkan kalimatmu."
-          : err instanceof Error
-            ? err.message
-            : undefined,
+          ? "Coba pendekkan kalimatmu."
+          : "Periksa koneksi internet.",
       });
-      toast(isAbort ? "Timeout — coba lagi" : "Gagal menghubungi server", "error");
+      toast(isAbort ? "Timeout" : "Gagal menghubungi server", "error");
     } finally {
       if (mountedRef.current) setLoading(false);
+      isSubmittingRef.current = false;
     }
   }, [text, direction, style, loading, overLimit, toast]);
 
-  /** Swap direction (+ swap input/output if we have both). */
   const handleSwap = () => {
     if (loading) return;
     setSwapping(true);
     setDirection((d) => (d === "en-id" ? "id-en" : "en-id"));
-    // If we already have a result, swap: the result becomes the new input.
     if (result) {
       setText(result);
       setResult("");
@@ -254,12 +285,8 @@ export function QuickTranslatorShell() {
       {/* Direction toggle */}
       <div className="mb-5 flex items-center justify-center gap-3 rounded-3xl border border-white/60 bg-white/70 p-3 shadow-card backdrop-blur-xl">
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-slate-50 px-4 py-2.5">
-          <span className="text-lg" aria-hidden>
-            {cfg.fromFlag}
-          </span>
-          <span className="truncate text-sm font-semibold text-slate-800">
-            {cfg.fromLabel}
-          </span>
+          <span className="text-lg" aria-hidden>{cfg.fromFlag}</span>
+          <span className="truncate text-sm font-semibold text-slate-800">{cfg.fromLabel}</span>
         </div>
 
         <motion.button
@@ -274,18 +301,13 @@ export function QuickTranslatorShell() {
             "hover:shadow-glow disabled:cursor-not-allowed disabled:opacity-50",
           )}
           aria-label="Tukar arah terjemahan"
-          title="Tukar arah"
         >
           <ArrowLeftRight className="h-4 w-4" strokeWidth={2.5} />
         </motion.button>
 
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-gradient-to-br from-brand-50 to-violet-50 px-4 py-2.5">
-          <span className="text-lg" aria-hidden>
-            {cfg.toFlag}
-          </span>
-          <span className="truncate text-sm font-semibold text-slate-800">
-            {cfg.toLabel}
-          </span>
+          <span className="text-lg" aria-hidden>{cfg.toFlag}</span>
+          <span className="truncate text-sm font-semibold text-slate-800">{cfg.toLabel}</span>
         </div>
       </div>
 
@@ -293,23 +315,13 @@ export function QuickTranslatorShell() {
       <div className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/80 p-5 shadow-card backdrop-blur-xl sm:p-6">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-lg" aria-hidden>
-              {cfg.fromFlag}
-            </span>
-            <span className="text-sm font-semibold text-slate-800">
-              {cfg.fromLabel}
-            </span>
+            <span className="text-lg" aria-hidden>{cfg.fromFlag}</span>
+            <span className="text-sm font-semibold text-slate-800">{cfg.fromLabel}</span>
           </div>
-          <span
-            className={cn(
-              "text-[11px] font-medium tabular-nums",
-              overLimit
-                ? "text-rose-600"
-                : nearLimit
-                  ? "text-amber-600"
-                  : "text-slate-400",
-            )}
-          >
+          <span className={cn(
+            "text-[11px] font-medium tabular-nums",
+            overLimit ? "text-rose-600" : nearLimit ? "text-amber-600" : "text-slate-400",
+          )}>
             {charCount} / {MAX_CHARS}
           </span>
         </div>
@@ -330,20 +342,14 @@ export function QuickTranslatorShell() {
         />
 
         <div className="mt-4 border-t border-slate-100 pt-4">
-          <StyleSelector
-            value={style}
-            onChange={setStyle}
-            disabled={loading}
-          />
+          <StyleSelector value={style} onChange={setStyle} disabled={loading} />
         </div>
 
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[11px] text-slate-400">
-            Gaya:{" "}
-            <span className="font-medium text-slate-600">
-              {styleInfo.emoji} {styleInfo.label}
-            </span>{" "}
-            · <kbd className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">Ctrl</kbd>
+            Gaya: <span className="font-medium text-slate-600">{styleInfo.emoji} {styleInfo.label}</span>
+            {" · "}
+            <kbd className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">Ctrl</kbd>
             +<kbd className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">Enter</kbd>
           </p>
           <div className="flex gap-2">
@@ -363,26 +369,20 @@ export function QuickTranslatorShell() {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-brand-600 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-soft transition-all",
                 "hover:shadow-glow hover:scale-[1.02] active:scale-[0.98]",
-                "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-soft",
+                "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100",
               )}
             >
               {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Menerjemahkan...
-                </>
+                <><Loader2 className="h-4 w-4 animate-spin" />Menerjemahkan...</>
               ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Translate
-                </>
+                <><Send className="h-4 w-4" />Translate</>
               )}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Output card */}
+      {/* Output */}
       <div className="mt-5">
         <AnimatePresence mode="wait">
           {loading ? (
@@ -411,18 +411,15 @@ export function QuickTranslatorShell() {
               className="rounded-3xl border border-rose-200 bg-rose-50/80 p-5 shadow-card backdrop-blur-xl sm:p-6"
               role="alert"
             >
-              <p className="font-display text-base font-semibold text-rose-900">
-                {error.message}
-              </p>
+              <p className="font-display text-base font-semibold text-rose-900">{error.message}</p>
               {error.detail && (
-                <p className="mt-1 text-sm leading-relaxed text-rose-800/80">
-                  {error.detail}
-                </p>
+                <p className="mt-1 text-sm leading-relaxed text-rose-800/80">{error.detail}</p>
               )}
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700"
+                disabled={!canSubmit}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-50"
               >
                 Coba lagi
               </button>
@@ -440,16 +437,10 @@ export function QuickTranslatorShell() {
                 <div className="relative">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg" aria-hidden>
-                        {cfg.toFlag}
-                      </span>
+                      <span className="text-lg" aria-hidden>{cfg.toFlag}</span>
                       <div className="leading-tight">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-700/80">
-                          {cfg.toLabel}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          Gaya {styleInfo.emoji} {styleInfo.label}
-                        </p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-700/80">{cfg.toLabel}</p>
+                        <p className="text-xs text-slate-500">Gaya {styleInfo.emoji} {styleInfo.label}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -458,7 +449,6 @@ export function QuickTranslatorShell() {
                         onClick={() => speak(result, cfg.ttsToLang)}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 backdrop-blur transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
                         aria-label="Dengarkan"
-                        title="Dengarkan"
                       >
                         <Volume2 className="h-3.5 w-3.5" />
                         Dengar
@@ -466,7 +456,6 @@ export function QuickTranslatorShell() {
                       <CopyButton value={result} label="Salin" variant="solid" />
                     </div>
                   </div>
-
                   <p className="mt-4 font-display text-lg font-semibold leading-relaxed text-slate-900 sm:text-xl">
                     {result}
                   </p>
@@ -484,18 +473,14 @@ export function QuickTranslatorShell() {
               <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500/15 to-violet-500/15 text-brand-700 ring-1 ring-brand-200/50">
                 <Zap className="h-5 w-5" />
               </div>
-              <p className="mt-3 text-sm font-medium text-slate-700">
-                Hasil terjemahan akan muncul di sini
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Ketik kalimat di atas → pilih gaya → Translate
-              </p>
+              <p className="mt-3 text-sm font-medium text-slate-700">Hasil terjemahan akan muncul di sini</p>
+              <p className="mt-1 text-xs text-slate-500">Ketik kalimat → pilih gaya → Translate</p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Info strip — nudge toward full mode for deeper study */}
+      {/* Link to full mode */}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/40 px-4 py-3 text-xs text-slate-500 backdrop-blur">
         <p>
           Mau penjelasan lengkap + slang + konteks budaya?{" "}
