@@ -110,3 +110,18 @@ export interface TranslateApiError {
   error: string;
   detail?: string;
 }
+
+/* ---------------------------------------------------------------------- *
+ *  Quick Translate — minimal payload, same style options as full mode.
+ *  Output is just the translated string (no explanations).
+ * ---------------------------------------------------------------------- */
+
+export interface QuickTranslateRequestBody {
+  text: string;
+  direction: Direction;
+  style: TranslationStyle;
+}
+
+export interface QuickTranslateResult {
+  translation: string;
+}

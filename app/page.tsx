@@ -8,10 +8,16 @@ import {
   Wand2,
   GraduationCap,
   Heart,
+  Zap,
 } from "lucide-react";
 import { HeroIllustration } from "@/components/landing/HeroIllustration";
 
 const features = [
+  {
+    icon: Zap,
+    title: "Quick & Full Mode",
+    desc: "Quick untuk terjemahan cepat hemat token. Full untuk penjelasan mendalam seperti guru pribadi.",
+  },
   {
     icon: Languages,
     title: "Terjemahan 2 Arah",
@@ -82,11 +88,21 @@ export default function HomePage() {
               </Link>
             </div>
 
+            {/* Quick mode highlight */}
+            <Link
+              href="/quick"
+              className="group mt-3 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/70 px-4 py-2 text-xs font-semibold text-amber-800 shadow-sm transition hover:border-amber-300 hover:bg-amber-50"
+            >
+              <Zap className="h-3.5 w-3.5 fill-amber-400" />
+              Perlu cepat & hemat? Coba Quick Translate
+              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+
             <dl className="mt-10 grid max-w-md grid-cols-3 gap-4 text-center">
               {[
                 { v: "11+", k: "Kartu hasil" },
                 { v: "8", k: "Gaya terjemahan" },
-                { v: "2", k: "Arah bahasa" },
+                { v: "2", k: "Mode kecepatan" },
               ].map((s) => (
                 <div
                   key={s.k}
@@ -166,6 +182,13 @@ export default function HomePage() {
               >
                 Mulai dari Indonesia
                 <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/quick"
+                className="inline-flex items-center gap-2 rounded-2xl bg-amber-400/90 px-6 py-3 text-sm font-semibold text-amber-950 shadow-md transition hover:scale-[1.02] hover:bg-amber-400"
+              >
+                <Zap className="h-4 w-4 fill-amber-950" />
+                Quick Translate
               </Link>
             </div>
           </div>

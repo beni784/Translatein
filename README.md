@@ -214,6 +214,36 @@ curl -X POST http://localhost:3000/api/translate \
 - `direction` — `"en-id"` atau `"id-en"`.
 - `style` — salah satu dari: `natural | formal | casual | academic | business | slang | romantic | kids`.
 
+### ⚡ Quick Translate API — hemat token
+
+Endpoint terpisah untuk terjemahan ringan tanpa penjelasan. Output hanya 1 string terjemahan, sekitar **~90% lebih hemat output token** dibanding endpoint full.
+
+```bash
+curl -X POST http://localhost:3000/api/quick-translate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Let'"'"'s grab a coffee later!",
+    "direction": "en-id",
+    "style": "casual"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "translation": "Nanti ngopi bareng yuk!"
+}
+```
+
+Validasi sama dengan endpoint full. Perbedaan utama:
+- `responseMimeType: "text/plain"` (bukan JSON wrapper dari model)
+- `maxOutputTokens: 512` (bukan 3000)
+- Tidak ada breakdown, nuansa, atau slang section — hanya terjemahan saja
+- Halaman UI-nya di `/quick` dengan tombol swap arah
+
+Untuk pemakaian sehari-hari di mana kamu cuma butuh artinya, Quick Mode membuat kuota free-tier Gemini kamu bertahan **jauh** lebih lama.
+
 ---
 
 ## ☁️ Deploy ke Vercel
