@@ -9,6 +9,7 @@ import {
   GraduationCap,
   Heart,
   Zap,
+  SpellCheck,
 } from "lucide-react";
 import { HeroIllustration } from "@/components/landing/HeroIllustration";
 
@@ -17,6 +18,11 @@ const features = [
     icon: Zap,
     title: "Quick & Full Mode",
     desc: "Quick untuk terjemahan cepat hemat token. Full untuk penjelasan mendalam seperti guru pribadi.",
+  },
+  {
+    icon: SpellCheck,
+    title: "Grammar Check",
+    desc: "Perbaiki grammar, typo, dan struktur kalimat. Seperti punya editor pribadi.",
   },
   {
     icon: Languages,
@@ -89,14 +95,24 @@ export default function HomePage() {
             </div>
 
             {/* Quick mode highlight */}
-            <Link
-              href="/quick"
-              className="group mt-3 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/70 px-4 py-2 text-xs font-semibold text-amber-800 shadow-sm transition hover:border-amber-300 hover:bg-amber-50"
-            >
-              <Zap className="h-3.5 w-3.5 fill-amber-400" />
-              Perlu cepat & hemat? Coba Quick Translate
-              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-            </Link>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href="/quick"
+                className="group inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/70 px-4 py-2 text-xs font-semibold text-amber-800 shadow-sm transition hover:border-amber-300 hover:bg-amber-50"
+              >
+                <Zap className="h-3.5 w-3.5 fill-amber-400" />
+                Quick Translate
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                href="/grammar"
+                className="group inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/70 px-4 py-2 text-xs font-semibold text-emerald-800 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+              >
+                <SpellCheck className="h-3.5 w-3.5" />
+                Grammar Check
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            </div>
 
             <dl className="mt-10 grid max-w-md grid-cols-3 gap-4 text-center">
               {[
@@ -189,6 +205,13 @@ export default function HomePage() {
               >
                 <Zap className="h-4 w-4 fill-amber-950" />
                 Quick Translate
+              </Link>
+              <Link
+                href="/grammar"
+                className="inline-flex items-center gap-2 rounded-2xl bg-emerald-400/90 px-6 py-3 text-sm font-semibold text-emerald-950 shadow-md transition hover:scale-[1.02] hover:bg-emerald-400"
+              >
+                <SpellCheck className="h-4 w-4" />
+                Grammar Check
               </Link>
             </div>
           </div>

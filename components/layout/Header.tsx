@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 
 const NAV_LINKS = [
-  { href: "/quick", label: "Quick", flag: "⚡", highlight: true },
+  { href: "/quick", label: "Quick", flag: "⚡", highlight: "amber" as const },
+  { href: "/grammar", label: "Grammar", flag: "✍️", highlight: "emerald" as const },
   { href: "/english", label: "English → ID", flag: "🇬🇧" },
   { href: "/indonesian", label: "Indonesia → EN", flag: "🇮🇩" },
 ] as const;
@@ -45,7 +46,7 @@ export function Header() {
         <div className="hidden items-center gap-1 md:flex">
           {NAV_LINKS.map((link) => {
             const active = pathname === link.href;
-            const isHighlight = "highlight" in link && link.highlight;
+            const hl = "highlight" in link ? link.highlight : null;
             return (
               <Link
                 key={link.href}
@@ -53,12 +54,16 @@ export function Header() {
                 className={cn(
                   "rounded-xl px-4 py-2 text-sm font-medium transition-all",
                   active
-                    ? isHighlight
+                    ? hl === "amber"
                       ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-soft"
-                      : "bg-gradient-to-r from-brand-600 to-violet-600 text-white shadow-soft"
-                    : isHighlight
+                      : hl === "emerald"
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-soft"
+                        : "bg-gradient-to-r from-brand-600 to-violet-600 text-white shadow-soft"
+                    : hl === "amber"
                       ? "border border-amber-200 bg-amber-50/70 text-amber-800 hover:border-amber-300 hover:bg-amber-50"
-                      : "text-slate-600 hover:bg-white hover:text-slate-900",
+                      : hl === "emerald"
+                        ? "border border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50"
+                        : "text-slate-600 hover:bg-white hover:text-slate-900",
                 )}
               >
                 <span className="mr-1.5">{link.flag}</span>
@@ -87,7 +92,7 @@ export function Header() {
           <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 sm:px-6">
             {NAV_LINKS.map((link) => {
               const active = pathname === link.href;
-              const isHighlight = "highlight" in link && link.highlight;
+              const hl = "highlight" in link ? link.highlight : null;
               return (
                 <Link
                   key={link.href}
@@ -96,12 +101,16 @@ export function Header() {
                   className={cn(
                     "rounded-xl px-4 py-2.5 text-sm font-medium transition",
                     active
-                      ? isHighlight
+                      ? hl === "amber"
                         ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white"
-                        : "bg-gradient-to-r from-brand-600 to-violet-600 text-white"
-                      : isHighlight
+                        : hl === "emerald"
+                          ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white"
+                          : "bg-gradient-to-r from-brand-600 to-violet-600 text-white"
+                      : hl === "amber"
                         ? "border border-amber-200 bg-amber-50 text-amber-800"
-                        : "text-slate-700 hover:bg-slate-100",
+                        : hl === "emerald"
+                          ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                          : "text-slate-700 hover:bg-slate-100",
                   )}
                 >
                   <span className="mr-2">{link.flag}</span>
